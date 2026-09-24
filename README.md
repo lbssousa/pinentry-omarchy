@@ -9,6 +9,8 @@ same overlay dialog as the shell's polkit agent: same layer, scrim, card,
 fonts, `[polkit]` theme colours and failure shake, following theme changes
 live.
 
+![A GnuPG PIN prompt drawn as a full-screen overlay dialog, in the Tokyo Night theme](docs/dialog.png)
+
 ## How it works
 
 ```
