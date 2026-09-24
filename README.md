@@ -97,6 +97,26 @@ gpgconf --reload gpg-agent
 [omarchy-setup](https://github.com/lbssousa/omarchy-setup) automates all
 of this (`just pinentry`).
 
+## Releases
+
+`main` only takes squash-merged pull requests, which GitHub signs with its
+own key. A release is therefore a **GPG-signed tag** made by the
+maintainer on the merged commit. That tag, not `main`, is what gets
+deployed: omarchy-setup checks out the tag and verifies it against the
+maintainer's key before building.
+
+1. Open a PR that bumps the version in `Cargo.toml` (then run
+   `cargo update -w`), `packaging/PKGBUILD` and `plugin/manifest.json`,
+   and merge it.
+2. Tag the merge commit and push the tag:
+   ```sh
+   git switch main && git pull
+   git tag -s vX.Y.Z -m "pinentry-omarchy X.Y.Z"
+   git push origin vX.Y.Z
+   ```
+3. In omarchy-setup, set `pinentry_omarchy_ref` to the tag and run
+   `just pinentry`.
+
 ## Development
 
 | Recipe | What it does |
