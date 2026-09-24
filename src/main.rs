@@ -13,36 +13,41 @@ use assuan::{
     Writer, split_command,
 };
 use request::{Kind, State};
+use shell::Dialog;
 
 fn main() {
     secret::harden();
 
-    if !dialog_available() {
+    let Some(dialog) = connect_dialog() else {
         let err = fallback::exec();
         eprintln!("pinentry-omarchy: no shell dialog and no fallback pinentry: {err}");
         process::exit(1);
-    }
+    };
 
     let stdin = io::stdin();
     let stdout = io::stdout();
-    if serve(stdin.lock(), stdout.lock()).is_err() {
+    if serve(dialog, stdin.lock(), stdout.lock()).is_err() {
         process::exit(1);
     }
 }
 
 /// The shell dialog is only an option inside a Wayland session with the
 /// plugin listening. PINENTRY_OMARCHY_SOCKET (tests, dev instance) skips
-/// the session check.
-fn dialog_available() -> bool {
-    if env::var_os("PINENTRY_OMARCHY_SOCKET").is_none() && env::var_os("WAYLAND_DISPLAY").is_none() {
-        return false;
+/// the session check. The connection made here serves the first prompt.
+fn connect_dialog() -> Option<Dialog> {
+    if env::var_os("PINENTRY_OMARCHY_SOCKET").is_none() && env::var_os("WAYLAND_DISPLAY").is_none()
+    {
+        return None;
     }
-    shell::connect().is_ok()
+    shell::connect().ok().map(Dialog::new)
 }
 
-fn serve(mut input: impl BufRead, output: impl Write) -> io::Result<()> {
+fn serve(mut dialog: Dialog, mut input: impl BufRead, output: impl Write) -> io::Result<()> {
     let mut w = Writer::new(output);
-    w.ok(Some(&format!("Pleased to meet you, process {}", process::id())))?;
+    w.ok(Some(&format!(
+        "Pleased to meet you, process {}",
+        process::id()
+    )))?;
 
     let mut state = State::default();
     let mut line = Vec::new();
@@ -67,13 +72,17 @@ fn serve(mut input: impl BufRead, output: impl Write) -> io::Result<()> {
             Ok(false) => {}
         }
         match cmd.as_str() {
-            "GETPIN" => getpin(&mut state, &mut w)?,
+            "GETPIN" => getpin(&mut dialog, &mut state, &mut w)?,
             "CONFIRM" => {
                 let one_button = String::from_utf8_lossy(arg).contains("--one-button");
-                let kind = if one_button { Kind::Message } else { Kind::Confirm };
-                confirm(&mut state, &mut w, kind)?
+                let kind = if one_button {
+                    Kind::Message
+                } else {
+                    Kind::Confirm
+                };
+                confirm(&mut dialog, &mut state, &mut w, kind)?
             }
-            "MESSAGE" => confirm(&mut state, &mut w, Kind::Message)?,
+            "MESSAGE" => confirm(&mut dialog, &mut state, &mut w, Kind::Message)?,
             "GETINFO" => getinfo(&mut w, &String::from_utf8_lossy(arg))?,
             "RESET" => {
                 state = State::default();
@@ -93,9 +102,9 @@ fn serve(mut input: impl BufRead, output: impl Write) -> io::Result<()> {
     }
 }
 
-fn getpin<W: Write>(state: &mut State, w: &mut Writer<W>) -> io::Result<()> {
+fn getpin<W: Write>(dialog: &mut Dialog, state: &mut State, w: &mut Writer<W>) -> io::Result<()> {
     let repeat = !state.repeat.is_empty();
-    let answer = shell::ask(&state.request(Kind::GetPin), state.timeout);
+    let answer = dialog.ask(&state.request(Kind::GetPin), state.timeout);
     state.after_prompt();
     let response = match answer {
         Ok(r) => r,
@@ -114,13 +123,21 @@ fn getpin<W: Write>(state: &mut State, w: &mut Writer<W>) -> io::Result<()> {
         "cancel" => w.err(ERR_CANCELED, "Operation cancelled"),
         "timeout" => w.err(ERR_TIMEOUT, "Timeout"),
         "busy" => w.err(ERR_PIN_ENTRY, "Another pinentry dialog is open"),
-        _ => w.err(ERR_PIN_ENTRY, response.message.as_deref().unwrap_or("Dialog error")),
+        _ => w.err(
+            ERR_PIN_ENTRY,
+            response.message.as_deref().unwrap_or("Dialog error"),
+        ),
     }
 }
 
-fn confirm<W: Write>(state: &mut State, w: &mut Writer<W>, kind: Kind) -> io::Result<()> {
+fn confirm<W: Write>(
+    dialog: &mut Dialog,
+    state: &mut State,
+    w: &mut Writer<W>,
+    kind: Kind,
+) -> io::Result<()> {
     let message = matches!(kind, Kind::Message);
-    let answer = shell::ask(&state.request(kind), state.timeout);
+    let answer = dialog.ask(&state.request(kind), state.timeout);
     state.after_prompt();
     let response = match answer {
         Ok(r) => r,
@@ -135,7 +152,10 @@ fn confirm<W: Write>(state: &mut State, w: &mut Writer<W>, kind: Kind) -> io::Re
         "cancel" => w.err(ERR_CANCELED, "Operation cancelled"),
         "timeout" => w.err(ERR_TIMEOUT, "Timeout"),
         "busy" => w.err(ERR_PIN_ENTRY, "Another pinentry dialog is open"),
-        _ => w.err(ERR_PIN_ENTRY, response.message.as_deref().unwrap_or("Dialog error")),
+        _ => w.err(
+            ERR_PIN_ENTRY,
+            response.message.as_deref().unwrap_or("Dialog error"),
+        ),
     }
 }
 

@@ -7,8 +7,14 @@ use std::process::Command;
 /// Only valid before anything has been written to gpg-agent.
 pub fn exec() -> io::Error {
     let program = env::var_os("PINENTRY_OMARCHY_FALLBACK").unwrap_or_else(|| {
-        let graphical = env::var_os("WAYLAND_DISPLAY").is_some() || env::var_os("DISPLAY").is_some();
-        if graphical { "pinentry-gnome3" } else { "pinentry-curses" }.into()
+        let graphical =
+            env::var_os("WAYLAND_DISPLAY").is_some() || env::var_os("DISPLAY").is_some();
+        if graphical {
+            "pinentry-gnome3"
+        } else {
+            "pinentry-curses"
+        }
+        .into()
     });
     Command::new(program).args(env::args_os().skip(1)).exec()
 }

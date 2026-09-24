@@ -24,7 +24,10 @@ pub fn split_command(line: &[u8]) -> (String, &[u8]) {
         None => (line, &line[line.len()..]),
     };
     let start = rest.iter().position(|&b| b != b' ').unwrap_or(rest.len());
-    (String::from_utf8_lossy(cmd).to_ascii_uppercase(), &rest[start..])
+    (
+        String::from_utf8_lossy(cmd).to_ascii_uppercase(),
+        &rest[start..],
+    )
 }
 
 /// Decodes Assuan %XX escapes; invalid escapes are kept literally.
@@ -130,7 +133,10 @@ mod tests {
     #[test]
     fn splits_commands() {
         assert_eq!(split_command(b"getpin\n"), ("GETPIN".into(), &b""[..]));
-        assert_eq!(split_command(b"SETDESC  hello world\r\n"), ("SETDESC".into(), &b"hello world"[..]));
+        assert_eq!(
+            split_command(b"SETDESC  hello world\r\n"),
+            ("SETDESC".into(), &b"hello world"[..])
+        );
     }
 
     #[test]

@@ -70,7 +70,11 @@ impl State {
             "SETNOTOK" => self.notok = strip_mnemonic(&text()),
             "SETREPEAT" => {
                 let prompt = text();
-                self.repeat = if prompt.is_empty() { "Repeat".into() } else { prompt };
+                self.repeat = if prompt.is_empty() {
+                    "Repeat".into()
+                } else {
+                    prompt
+                };
             }
             "SETREPEATERROR" => self.repeat_error = text(),
             "SETTIMEOUT" => {
@@ -127,7 +131,10 @@ mod tests {
         assert!(s.apply("SETOK", b"_OK").unwrap());
         assert!(!s.apply("GETPIN", b"").unwrap());
         let json = serde_json::to_string(&s.request(Kind::GetPin)).unwrap();
-        assert_eq!(json, r#"{"v":1,"type":"getpin","desc":"Unlock\ncard","prompt":"PIN","ok":"OK"}"#);
+        assert_eq!(
+            json,
+            r#"{"v":1,"type":"getpin","desc":"Unlock\ncard","prompt":"PIN","ok":"OK"}"#
+        );
     }
 
     #[test]

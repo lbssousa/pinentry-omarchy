@@ -43,10 +43,37 @@ pub struct Response {
     pub message: Option<String>,
 }
 
-/// Sends one request and waits for the dialog's answer. Dropping the stream
-/// without an answer (e.g. when gpg-agent kills us) closes the dialog.
-pub fn ask(request: &Request<'_>, timeout_secs: u64) -> io::Result<Response> {
-    let mut stream = connect()?;
+/// Connection to the dialog plugin. The plugin answers one request per
+/// connection and then closes it.
+pub struct Dialog {
+    // The connection that proved the plugin is up; used for the first
+    // request so that check doesn't cost an extra, empty connection.
+    pending: Option<UnixStream>,
+}
+
+impl Dialog {
+    pub fn new(first: UnixStream) -> Self {
+        Self {
+            pending: Some(first),
+        }
+    }
+
+    /// Sends one request and waits for the answer. Dropping the stream
+    /// without an answer (e.g. when gpg-agent kills us) closes the dialog.
+    pub fn ask(&mut self, request: &Request<'_>, timeout_secs: u64) -> io::Result<Response> {
+        let stream = match self.pending.take() {
+            Some(stream) => stream,
+            None => connect()?,
+        };
+        ask_on(stream, request, timeout_secs)
+    }
+}
+
+fn ask_on(
+    mut stream: UnixStream,
+    request: &Request<'_>,
+    timeout_secs: u64,
+) -> io::Result<Response> {
     if timeout_secs > 0 {
         // The dialog enforces the timeout itself; this only guards against a
         // shell that stops answering.
@@ -60,7 +87,10 @@ pub fn ask(request: &Request<'_>, timeout_secs: u64) -> io::Result<Response> {
     let mut buf = Zeroizing::new(Vec::new());
     reader.read_until(b'\n', &mut buf)?;
     if buf.is_empty() {
-        return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "pinentry dialog went away"));
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "pinentry dialog went away",
+        ));
     }
     serde_json::from_slice(&buf).map_err(io::Error::other)
 }

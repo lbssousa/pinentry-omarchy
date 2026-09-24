@@ -3,9 +3,10 @@ import Quickshell
 import Quickshell.Io
 
 // Answers pinentry-omarchy over $XDG_RUNTIME_DIR/pinentry-omarchy.sock:
-// one NDJSON request line in, one response line out; the client closes the
-// connection. A client that disconnects (or half-closes) before the answer
-// cancels its dialog. Only one request is served at a time; others get "busy".
+// one NDJSON request line in, one response line out, then the plugin closes
+// the connection (closing it here rather than in the client keeps
+// Quickshell from logging a PeerClosedError). A client that disconnects
+// (or half-closes) before the answer cancels its dialog. Only one request is served at a time; others get "busy".
 Item {
   id: root
 
@@ -15,6 +16,7 @@ Item {
   function reply(conn, response) {
     conn.write(JSON.stringify(response) + "\n")
     conn.flush()
+    conn.connected = false
   }
 
   function handleRequest(conn, line) {

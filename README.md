@@ -22,9 +22,11 @@ gpg-agent ──Assuan (stdin/stdout)──▶ pinentry-omarchy (Rust)
 - **`pinentry-omarchy`** (`src/`) speaks the pinentry Assuan protocol to
   gpg-agent: `GETPIN` (with `SETREPEAT`), `CONFIRM` (incl.
   `--one-button`), `MESSAGE`, the `SET*` texts and labels, `SETTIMEOUT`,
-  `GETINFO`. For each prompt it connects to the plugin's socket (checking
-  that the peer runs as the same user), sends the request and relays the
-  answer.
+  `GETINFO`. For each prompt it sends the request over a connection to
+  the plugin's socket (checking that the peer runs as the same user) and
+  relays the answer. The connection opened at startup to check that the
+  plugin is up carries the first prompt; the plugin closes each connection
+  after answering.
 - **The plugin** (`plugin/`) is a third-party Omarchy shell plugin of kind
   `service`. It reuses the shell's own `qs.Commons` (`Color`, `Style`,
   `Border`) and `qs.Ui` (`BorderSurface`, `Button`) instead of copying
