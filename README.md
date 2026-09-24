@@ -103,6 +103,7 @@ of this (`just pinentry`).
 |---|---|
 | `just test` | Unit tests, integration tests against a fake dialog, `cargo fmt --check` and clippy |
 | `just test-plugin` | Protocol tests against the real QML plugin in a throwaway Quickshell instance (needs the Wayland session; dialogs flash on screen) |
+| `just fuzz [target] [secs]` | Fuzzes the Assuan session, the dialog-reply parser or the `D`-line encoder with cargo-fuzz (needs nightly Rust and `cargo install cargo-fuzz`) |
 | `just dev` | Runs the dialog in a separate Quickshell instance (`dev/`, which links the shell's `Commons`/`Ui`) on its own socket |
 | `just try` | Sends a sample `GETPIN` through the `just dev` instance |
 | `just link` | Loads this checkout's plugin in the real shell (restarts omarchy-shell) |

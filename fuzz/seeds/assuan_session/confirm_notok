@@ -1,0 +1,5 @@
+SETNOTOK _No
+CONFIRM
+MESSAGE
+CONFIRM --one-button
+ÿ{"result":"notok"}

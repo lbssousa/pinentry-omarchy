@@ -17,8 +17,11 @@ pub const ERR_LINE_TOO_LONG: u32 = SOURCE_PINENTRY | 263;
 /// ASSUAN_LINELENGTH).
 pub const MAX_LINE: usize = 1002;
 
-// Assuan lines are limited to 1000 bytes including "D " and the newline.
-const MAX_DATA_PER_LINE: usize = 1000 - 3;
+/// Longest response line we send, newline included (Assuan's limit).
+pub const MAX_RESPONSE_LINE: usize = 1000;
+
+// "D " + data + newline must fit in one response line.
+const MAX_DATA_PER_LINE: usize = MAX_RESPONSE_LINE - 3;
 
 const HEX: &[u8; 16] = b"0123456789ABCDEF";
 
@@ -148,12 +151,23 @@ pub fn sanitize_display(text: &str) -> String {
         .collect()
 }
 
-/// Makes free text safe to put on a response line: control characters
-/// (CR/LF above all) become spaces, so they can't start a new line.
-fn sanitize_line(text: &str) -> String {
-    text.chars()
-        .map(|c| if c.is_control() { ' ' } else { c })
-        .collect()
+/// Builds a response line `prefix` + free text + newline. Control
+/// characters (CR/LF above all) become spaces, so the text can't start a
+/// new line, and the text is cut at a character boundary so the line stays
+/// within Assuan's limit.
+fn response_line(prefix: &str, text: &str) -> String {
+    let budget = MAX_RESPONSE_LINE - prefix.len() - 1;
+    let mut line = String::with_capacity(prefix.len() + text.len().min(budget) + 1);
+    line.push_str(prefix);
+    for c in text.chars() {
+        let c = if c.is_control() { ' ' } else { c };
+        if line.len() - prefix.len() + c.len_utf8() > budget {
+            break;
+        }
+        line.push(c);
+    }
+    line.push('\n');
+    line
 }
 
 fn percent_encode_into(data: &[u8], out: &mut Zeroizing<Vec<u8>>) {
@@ -184,18 +198,18 @@ impl<W: Write> Writer<W> {
 
     pub fn ok(&mut self, msg: Option<&str>) -> io::Result<()> {
         let line = match msg {
-            Some(m) => format!("OK {}\n", sanitize_line(m)),
+            Some(m) => response_line("OK ", m),
             None => "OK\n".to_string(),
         };
         self.line(line.as_bytes())
     }
 
     pub fn err(&mut self, code: u32, msg: &str) -> io::Result<()> {
-        self.line(format!("ERR {code} {}\n", sanitize_line(msg)).as_bytes())
+        self.line(response_line(&format!("ERR {code} "), msg).as_bytes())
     }
 
     pub fn status(&mut self, keyword: &str) -> io::Result<()> {
-        self.line(format!("S {}\n", sanitize_line(keyword)).as_bytes())
+        self.line(response_line("S ", keyword).as_bytes())
     }
 
     /// Sends `data` as one or more "D" lines, escaping as Assuan requires.
@@ -334,6 +348,24 @@ mod tests {
             text,
             "ERR 83886166 x D 1234  OK \nOK a b\nS PIN_REPEATED D 1\n"
         );
+    }
+
+    #[test]
+    fn response_lines_fit_assuan_limit() {
+        let mut out = Vec::new();
+        let mut w = Writer::new(&mut out);
+        w.err(ERR_PIN_ENTRY, &"x".repeat(5000)).unwrap();
+        w.ok(Some(&"é".repeat(3000))).unwrap();
+        w.status(&"🔑".repeat(1000)).unwrap();
+        let text = String::from_utf8(out).unwrap();
+        for line in text.split_inclusive('\n') {
+            assert!(line.len() <= MAX_RESPONSE_LINE, "{} bytes", line.len());
+            assert!(
+                line.len() > MAX_RESPONSE_LINE - 4,
+                "cut too early: {} bytes",
+                line.len()
+            );
+        }
     }
 
     #[test]

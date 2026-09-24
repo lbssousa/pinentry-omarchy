@@ -1,0 +1,6 @@
+SETREPEAT Repeat:
+SETREPEATERROR no match
+SETTIMEOUT 30
+GETPIN
+GETPIN
+ÿ{"result":"ok","pin":"x"}

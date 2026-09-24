@@ -1,0 +1,8 @@
+# comment
+
+getinfo flavor
+GETINFO version
+OPTION ttyname=/dev/pts/1
+RESET
+NOP
+FROB

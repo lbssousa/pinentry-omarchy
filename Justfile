@@ -21,6 +21,14 @@ test:
 test-plugin:
     cargo test --locked --test plugin -- --ignored
 
+# Fuzz one target (assuan_session, dialog_response, data_encoding) for
+# `secs` seconds; needs `rustup toolchain install nightly` and
+# `cargo install cargo-fuzz`. New inputs go to fuzz/corpus/, crashes to
+# fuzz/artifacts/.
+fuzz target="assuan_session" secs="60":
+    mkdir -p fuzz/corpus/{{target}}
+    cargo +nightly fuzz run {{target}} fuzz/corpus/{{target}} fuzz/seeds/{{target}} -- -max_total_time={{secs}} -max_len=8192
+
 # Run the dialog in a separate Quickshell instance (dev/), listening on its
 # own socket, so QML edits only need this restarted — not omarchy-shell.
 dev:
