@@ -1,0 +1,13 @@
+post_install() {
+  cat <<'EOF'
+==> The shell plugin is not enabled per user automatically. For each user:
+      ln -sfn /usr/share/pinentry-omarchy/plugin ~/.config/omarchy/plugins/lbssousa.pinentry
+      omarchy-shell shell enablePlugin lbssousa.pinentry '{}'
+      echo 'pinentry-program /usr/bin/pinentry-omarchy' >> ~/.gnupg/gpg-agent.conf
+      gpgconf --reload gpg-agent
+EOF
+}
+
+post_upgrade() {
+  echo '==> Restart the shell (omarchy-restart-shell) to load the updated dialog.'
+}

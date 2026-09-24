@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "lbssousa.pinentry",
+  "name": "Pinentry",
+  "version": "0.1.0",
+  "author": "Laércio de Sousa",
+  "description": "Theme-aware GnuPG PIN/passphrase dialog, styled like the polkit agent.",
+  "kinds": [
+    "service"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "PinentryService.qml"
+  }
+}
