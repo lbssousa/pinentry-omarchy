@@ -1,0 +1,6 @@
+SETDESC Please unlock%0Athe card
+SETPROMPT PIN:
+SETOK _OK
+GETPIN
+BYE
+ÿ{"result":"ok","pin":"12%2534%22%5C"}

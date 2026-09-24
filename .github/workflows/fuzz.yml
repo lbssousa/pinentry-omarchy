@@ -1,0 +1,59 @@
+name: fuzz
+
+on:
+  pull_request:
+    paths:
+      - src/**
+      - fuzz/**
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/fuzz.yml
+  push:
+    branches: [main]
+    paths:
+      - src/**
+      - fuzz/**
+      - Cargo.toml
+      - Cargo.lock
+      - .github/workflows/fuzz.yml
+  # A longer weekly run keeps exploring after the code stops changing.
+  schedule:
+    - cron: "11 6 * * 0"
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [assuan_session, dialog_response, data_encoding]
+    env:
+      TARGET: ${{ matrix.target }}
+      SECONDS_PER_TARGET: ${{ github.event_name == 'schedule' && '900' || '120' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install nightly Rust and cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo +nightly install cargo-fuzz --locked
+
+      - name: Fuzz
+        run: |
+          mkdir -p "fuzz/corpus/$TARGET"
+          cargo +nightly fuzz run "$TARGET" "fuzz/corpus/$TARGET" "fuzz/seeds/$TARGET" -- \
+            -max_total_time="$SECONDS_PER_TARGET" -max_len=8192
+
+      - name: Keep the crashing inputs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-artifacts-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+          retention-days: 30

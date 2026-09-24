@@ -1,0 +1,3 @@
+SETERROR Bad PIN%E2%80%AE
+GETPIN
+ÿ{"result":"error","message":"x\nD 1\r\nOK"}

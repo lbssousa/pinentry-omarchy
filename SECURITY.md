@@ -59,6 +59,9 @@ one of a limited number of tries.
 - Response lines to gpg-agent can't contain control characters.
 - Bounded input: 1000-byte Assuan lines, 64 KiB dialog replies, and
   timeouts capped at one day.
+- The Assuan session, the dialog-reply parser and the `D`-line encoder are
+  fuzzed with cargo-fuzz (`fuzz/`): on every pull request that touches the
+  code, and for longer every week.
 - Releases are built from GPG-signed commits.
   [omarchy-setup](https://github.com/lbssousa/omarchy-setup) verifies the
   signature before building.
