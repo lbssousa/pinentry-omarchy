@@ -1,5 +1,8 @@
 # pinentry-omarchy
 
+[![ci](https://github.com/lbssousa/pinentry-omarchy/actions/workflows/ci.yml/badge.svg)](https://github.com/lbssousa/pinentry-omarchy/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/lbssousa/pinentry-omarchy/badge)](https://scorecard.dev/viewer/?uri=github.com/lbssousa/pinentry-omarchy)
+
 A GnuPG [pinentry](https://www.gnupg.org/related_software/pinentry/) for
 [Omarchy](https://omarchy.org/) that asks for PINs and passphrases in the
 same overlay dialog as the shell's polkit agent: same layer, scrim, card,
@@ -106,8 +109,10 @@ deployed: omarchy-setup checks out the tag and verifies it against the
 maintainer's key before building.
 
 1. Open a PR that bumps the version in `Cargo.toml` (then run
-   `cargo update -w`), `packaging/PKGBUILD` and `plugin/manifest.json`,
-   and merge it.
+   `cargo update -w`), `packaging/PKGBUILD` and `plugin/manifest.json`.
+   The same PR turns the "Unreleased" section of
+   [CHANGELOG.md](CHANGELOG.md) into the new version's release notes.
+   Merge it.
 2. Tag the merge commit and push the tag:
    ```sh
    git switch main && git pull
@@ -132,3 +137,17 @@ maintainer's key before building.
 omarchy-shell doesn't reload a `keepLoaded` service when its files change,
 and its file watcher doesn't follow the plugin symlink. Iterate with
 `just dev`, and restart the shell when you're done.
+
+## Feedback and contributing
+
+- **Bugs and feature requests:** [GitHub issues](https://github.com/lbssousa/pinentry-omarchy/issues).
+- **Security vulnerabilities:** report them privately, as described in
+  [SECURITY.md](SECURITY.md).
+- **Contributions:** pull requests are welcome. See
+  [CONTRIBUTING.md](CONTRIBUTING.md) for the rules: tests with every change,
+  signed commits, and CI passing.
+- **Release notes:** [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+[MIT](LICENSE).
