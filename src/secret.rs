@@ -7,3 +7,12 @@ pub fn harden() {
     let _ = prctl::set_dumpable(false);
     let _ = mlockall(MlockAllFlags::MCL_CURRENT | MlockAllFlags::MCL_FUTURE);
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn makes_the_process_non_dumpable() {
+        super::harden();
+        assert!(!nix::sys::prctl::get_dumpable().unwrap());
+    }
+}

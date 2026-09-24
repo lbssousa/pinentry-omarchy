@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "lbssousa.pinentry",
   "name": "Pinentry",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": "Laércio de Sousa",
   "description": "Theme-aware GnuPG PIN/passphrase dialog, styled like the polkit agent.",
   "kinds": [

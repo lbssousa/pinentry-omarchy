@@ -10,10 +10,16 @@ default:
 build:
     cargo build
 
-# Unit + integration tests and clippy.
+# Unit + integration tests, formatting and clippy.
 test:
-    cargo test
-    cargo clippy --all-targets -- -D warnings
+    cargo test --locked
+    cargo fmt --check
+    cargo clippy --all-targets --locked -- -D warnings
+
+# Protocol tests against the real QML plugin in a throwaway Quickshell
+# instance (needs this Wayland session; dialogs flash on screen).
+test-plugin:
+    cargo test --locked --test plugin -- --ignored
 
 # Run the dialog in a separate Quickshell instance (dev/), listening on its
 # own socket, so QML edits only need this restarted — not omarchy-shell.

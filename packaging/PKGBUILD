@@ -4,7 +4,7 @@
 # $startdir), so `makepkg` in packaging/ packages the working tree as is.
 
 pkgname=pinentry-omarchy
-pkgver=0.1.1
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='GnuPG pinentry that asks through an Omarchy shell dialog styled like the polkit agent'
 arch=(x86_64 aarch64)

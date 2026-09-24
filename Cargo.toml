@@ -1,6 +1,6 @@
 [package]
 name = "pinentry-omarchy"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "GnuPG pinentry that asks through an Omarchy shell (Quickshell) dialog styled like the polkit agent"
 license = "MIT"

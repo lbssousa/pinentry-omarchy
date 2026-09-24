@@ -5,12 +5,14 @@ mod secret;
 mod shell;
 
 use std::env;
+use std::fs::File;
 use std::io::{self, BufRead, Write};
+use std::os::fd::AsFd;
 use std::process;
 
 use assuan::{
-    ERR_CANCELED, ERR_INV_VALUE, ERR_NOT_CONFIRMED, ERR_PIN_ENTRY, ERR_TIMEOUT, ERR_UNKNOWN_CMD,
-    Writer, split_command,
+    ERR_CANCELED, ERR_INV_VALUE, ERR_LINE_TOO_LONG, ERR_NOT_CONFIRMED, ERR_PIN_ENTRY, ERR_TIMEOUT,
+    ERR_UNKNOWN_CMD, LineRead, MAX_LINE, Writer, read_line_limited, split_command,
 };
 use request::{Kind, State};
 use shell::Dialog;
@@ -24,9 +26,13 @@ fn main() {
         process::exit(1);
     };
 
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    if serve(dialog, stdin.lock(), stdout.lock()).is_err() {
+    // Responses go straight to fd 1 through an unbuffered File: std's
+    // stdout buffer would keep the last "D <pin>" line around unwiped.
+    let stdout = io::stdout().as_fd().try_clone_to_owned().map(File::from);
+    let Ok(stdout) = stdout else {
+        process::exit(1);
+    };
+    if serve(dialog, io::stdin().lock(), stdout).is_err() {
         process::exit(1);
     }
 }
@@ -52,9 +58,13 @@ fn serve(mut dialog: Dialog, mut input: impl BufRead, output: impl Write) -> io:
     let mut state = State::default();
     let mut line = Vec::new();
     loop {
-        line.clear();
-        if input.read_until(b'\n', &mut line)? == 0 {
-            return Ok(());
+        match read_line_limited(&mut input, &mut line, MAX_LINE)? {
+            LineRead::Eof => return Ok(()),
+            LineRead::TooLong => {
+                w.err(ERR_LINE_TOO_LONG, "Line too long")?;
+                continue;
+            }
+            LineRead::Line => {}
         }
         let (cmd, arg) = split_command(&line);
         if cmd.is_empty() || cmd.starts_with('#') {
@@ -116,7 +126,7 @@ fn getpin<W: Write>(dialog: &mut Dialog, state: &mut State, w: &mut Writer<W>) -
                 w.status("PIN_REPEATED")?;
             }
             if let Some(pin) = response.pin.as_ref().filter(|p| !p.is_empty()) {
-                w.data(pin.as_bytes())?;
+                w.data(pin)?;
             }
             w.ok(None)
         }

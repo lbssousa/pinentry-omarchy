@@ -10,9 +10,9 @@ pub fn exec() -> io::Error {
         let graphical =
             env::var_os("WAYLAND_DISPLAY").is_some() || env::var_os("DISPLAY").is_some();
         if graphical {
-            "pinentry-gnome3"
+            "/usr/bin/pinentry-gnome3"
         } else {
-            "pinentry-curses"
+            "/usr/bin/pinentry-curses"
         }
         .into()
     });

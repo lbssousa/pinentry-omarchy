@@ -55,7 +55,8 @@ Item {
     notokLabel = String(req.notok || "")
     repeatPrompt = String(req.repeat || "")
     repeatError = String(req.repeatError || "")
-    timeout = Math.max(0, Number(req.timeout) || 0)
+    // Capped at one day, like the client does: Timer.interval is an int.
+    timeout = Math.min(86400, Math.max(0, Math.floor(Number(req.timeout) || 0)))
     localError = ""
     clearInputs()
     shown = true

@@ -1,6 +1,14 @@
 use serde::Serialize;
 
-use crate::assuan::{percent_decode, strip_mnemonic};
+use crate::assuan::{percent_decode, sanitize_display, strip_mnemonic};
+
+/// Protocol version spoken with the plugin; a plugin from another version
+/// rejects the request instead of misreading the PIN.
+pub const PROTOCOL_VERSION: u32 = 2;
+
+/// Longest SETTIMEOUT honoured (one day). Keeps the plugin's millisecond
+/// timer and our read deadline in range.
+pub const MAX_TIMEOUT_SECS: u64 = 86_400;
 
 /// Dialog settings accumulated from SET* commands until the next
 /// GETPIN / CONFIRM / MESSAGE.
@@ -59,7 +67,7 @@ impl State {
     /// Applies a SET* command. Returns false for commands this module
     /// doesn't own.
     pub fn apply(&mut self, cmd: &str, arg: &[u8]) -> Result<bool, &'static str> {
-        let text = || percent_decode(arg);
+        let text = || sanitize_display(&percent_decode(arg));
         match cmd {
             "SETTITLE" => self.title = text(),
             "SETDESC" => self.desc = text(),
@@ -78,7 +86,11 @@ impl State {
             }
             "SETREPEATERROR" => self.repeat_error = text(),
             "SETTIMEOUT" => {
-                self.timeout = text().trim().parse().map_err(|_| "invalid timeout")?;
+                let secs: u64 = percent_decode(arg)
+                    .trim()
+                    .parse()
+                    .map_err(|_| "invalid timeout")?;
+                self.timeout = secs.min(MAX_TIMEOUT_SECS);
             }
             _ => return Ok(false),
         }
@@ -96,7 +108,7 @@ impl State {
         let prompt = self.prompt.trim().trim_end_matches(':');
         let repeat = self.repeat.trim().trim_end_matches(':');
         Request {
-            v: 1,
+            v: PROTOCOL_VERSION,
             kind,
             title: &self.title,
             desc: &self.desc,
@@ -123,6 +135,10 @@ impl State {
 mod tests {
     use super::*;
 
+    fn json(state: &State, kind: Kind) -> serde_json::Value {
+        serde_json::to_value(state.request(kind)).unwrap()
+    }
+
     #[test]
     fn builds_getpin_request() {
         let mut s = State::default();
@@ -133,22 +149,94 @@ mod tests {
         let json = serde_json::to_string(&s.request(Kind::GetPin)).unwrap();
         assert_eq!(
             json,
-            r#"{"v":1,"type":"getpin","desc":"Unlock\ncard","prompt":"PIN","ok":"OK"}"#
+            r#"{"v":2,"type":"getpin","desc":"Unlock\ncard","prompt":"PIN","ok":"OK"}"#
         );
     }
 
     #[test]
-    fn error_is_one_shot() {
+    fn maps_every_set_command() {
         let mut s = State::default();
-        s.apply("SETERROR", b"Bad PIN").unwrap();
-        s.apply("SETREPEAT", b"").unwrap();
-        assert_eq!(s.request(Kind::GetPin).repeat, "Repeat");
-        s.after_prompt();
-        assert!(s.error.is_empty() && s.repeat.is_empty());
+        for (cmd, arg) in [
+            ("SETTITLE", "Title"),
+            ("SETDESC", "Desc"),
+            ("SETPROMPT", "Prompt:"),
+            ("SETERROR", "Error"),
+            ("SETOK", "_Yes"),
+            ("SETCANCEL", "_Abort"),
+            ("SETNOTOK", "_No"),
+            ("SETREPEAT", "Again:"),
+            ("SETREPEATERROR", "Mismatch"),
+            ("SETTIMEOUT", "30"),
+        ] {
+            assert!(s.apply(cmd, arg.as_bytes()).unwrap(), "{cmd}");
+        }
+        assert_eq!(
+            json(&s, Kind::GetPin),
+            serde_json::json!({
+                "v": 2, "type": "getpin", "title": "Title", "desc": "Desc",
+                "prompt": "Prompt", "error": "Error", "ok": "Yes", "cancel": "Abort",
+                "notok": "No", "repeat": "Again", "repeatError": "Mismatch", "timeout": 30,
+            })
+        );
     }
 
     #[test]
-    fn rejects_bad_timeout() {
-        assert!(State::default().apply("SETTIMEOUT", b"soon").is_err());
+    fn confirm_and_message_omit_pin_fields() {
+        let mut s = State::default();
+        s.apply("SETPROMPT", b"PIN:").unwrap();
+        s.apply("SETREPEAT", b"").unwrap();
+        s.apply("SETREPEATERROR", b"x").unwrap();
+        s.apply("SETDESC", b"Sure?").unwrap();
+        for kind in [Kind::Confirm, Kind::Message] {
+            let v = json(&s, kind);
+            assert!(v.get("prompt").is_none() && v.get("repeat").is_none());
+            assert!(v.get("repeatError").is_none());
+            assert_eq!(v["desc"], "Sure?");
+        }
+        assert_eq!(json(&s, Kind::Confirm)["type"], "confirm");
+        assert_eq!(json(&s, Kind::Message)["type"], "message");
+    }
+
+    #[test]
+    fn error_and_repeat_are_one_shot() {
+        let mut s = State::default();
+        s.apply("SETERROR", b"Bad PIN").unwrap();
+        s.apply("SETREPEAT", b"").unwrap();
+        s.apply("SETDESC", b"stays").unwrap();
+        assert_eq!(s.request(Kind::GetPin).repeat, "Repeat");
+        s.after_prompt();
+        assert!(s.error.is_empty() && s.repeat.is_empty());
+        assert_eq!(s.desc, "stays");
+    }
+
+    #[test]
+    fn caps_and_validates_timeout() {
+        let mut s = State::default();
+        s.apply("SETTIMEOUT", b" 45 ").unwrap();
+        assert_eq!(s.timeout, 45);
+        s.apply("SETTIMEOUT", b"99999999999").unwrap();
+        assert_eq!(s.timeout, MAX_TIMEOUT_SECS);
+        for bad in [&b"soon"[..], b"-1", b"", b"1.5", b"99999999999999999999999"] {
+            assert!(s.apply("SETTIMEOUT", bad).is_err(), "{bad:?}");
+        }
+        assert_eq!(
+            s.timeout, MAX_TIMEOUT_SECS,
+            "a rejected value keeps the old one"
+        );
+    }
+
+    #[test]
+    fn sanitizes_texts() {
+        let mut s = State::default();
+        s.apply(
+            "SETDESC",
+            "Key of Mallory %E2%80%AEgpj.exe%1B[2J".as_bytes(),
+        )
+        .unwrap();
+        s.apply("SETTITLE", b"a%0Db").unwrap();
+        s.apply("SETOK", b"%E2%81%A6_Sign").unwrap();
+        assert_eq!(s.desc, "Key of Mallory gpj.exe[2J");
+        assert_eq!(s.title, "ab");
+        assert_eq!(s.ok, "Sign");
     }
 }
